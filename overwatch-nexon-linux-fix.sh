@@ -566,6 +566,101 @@ write_cross_pem() {
     } > "$1"
 }
 
+# 위의 CROSS_G4 단독 검증은 "우리가 설치한 인증서 자체가 유효하다"만 보여준다.
+# 실제로 확인해야 하는 건 게임의 gamescale64.dll에 박힌 서명(리프+중간 인증서)이
+# 우리가 만든 신뢰 목록으로 핀 루트까지 실제로 검증되는가이다 — 자체서명 G4로
+# 3단계에서 끝나도 두 G4는 Subject Key ID까지 같아서 이름만으로는 로그에서
+# 구분되지 않기 때문에(docs/ANALYSIS.md §6), 실제 파일 기준으로 직접 검증해야
+# 확정적인 답이 나온다.
+check_dll_chain() {
+    local dll="$1" tmp count rc verify_out
+    tmp="$(mktemp -d)"
+
+    if count="$(OW_DLL="$dll" OW_LEAF="$tmp/leaf.pem" OW_MID="$tmp/mid.pem" OW_INFO="$tmp/info" \
+        python3 - 2>"$tmp/err" <<'PY'
+import os, re, struct, subprocess, sys, tempfile
+
+dll, leaf_path, mid_path, info_path = (os.environ[k] for k in
+    ("OW_DLL", "OW_LEAF", "OW_MID", "OW_INFO"))
+
+data = open(dll, "rb").read()
+if data[:2] != b"MZ":
+    sys.exit("PE 파일이 아닙니다 / not a PE file")
+e_lfanew = struct.unpack_from("<I", data, 0x3C)[0]
+if data[e_lfanew:e_lfanew + 4] != b"PE\0\0":
+    sys.exit("PE 헤더를 찾지 못했습니다 / bad PE header")
+magic = struct.unpack_from("<H", data, e_lfanew + 24)[0]
+if magic == 0x10b:      # PE32
+    dd_off = e_lfanew + 24 + 96
+elif magic == 0x20b:    # PE32+
+    dd_off = e_lfanew + 24 + 112
+else:
+    sys.exit("알 수 없는 옵셔널 헤더 / unknown optional header magic")
+# IMAGE_DIRECTORY_ENTRY_SECURITY (인덱스 4) — 이 항목의 VirtualAddress는 예외적으로
+# RVA가 아니라 파일 오프셋이다.
+sec_off, sec_size = struct.unpack_from("<II", data, dd_off + 4 * 8)
+if sec_size == 0:
+    sys.exit("서명이 없는 파일입니다 / file has no embedded signature")
+length, _revision, _cert_type = struct.unpack_from("<IHH", data, sec_off)
+pkcs7 = data[sec_off + 8: sec_off + length]
+
+certs_pem = subprocess.run(["openssl", "pkcs7", "-inform", "DER", "-print_certs"],
+                            input=pkcs7, capture_output=True).stdout.decode()
+blocks = re.findall(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", certs_pem, re.S)
+if not blocks:
+    sys.exit("내장 인증서를 찾지 못했습니다 / no embedded certificates found")
+
+leaf_f, mid_f, info = open(leaf_path, "w"), open(mid_path, "w"), []
+for b in blocks:
+    with tempfile.NamedTemporaryFile("w", suffix=".pem") as f:
+        f.write(b + "\n"); f.flush()
+        text = subprocess.run(["openssl", "x509", "-in", f.name, "-noout", "-text"],
+                              capture_output=True, text=True).stdout
+        subj = subprocess.run(["openssl", "x509", "-in", f.name, "-noout", "-subject"],
+                              capture_output=True, text=True).stdout.strip()
+    is_ca = "CA:TRUE" in text
+    (mid_f if is_ca else leaf_f).write(b + "\n")
+    info.append("%s  %s" % ("CA  " if is_ca else "leaf", subj))
+leaf_f.close(); mid_f.close()
+open(info_path, "w").write("\n".join(info) + "\n")
+print(len(blocks))
+PY
+    )"; then rc=0; else rc=$?; fi
+
+    if [ "$rc" -ne 0 ] || [ -z "$count" ]; then
+        d_bad "실제 서명을 확인하지 못했습니다 / could not inspect the embedded signature"
+        d_info "$(tail -1 "$tmp/err" 2>/dev/null)"
+        rm -rf "$tmp"; return
+    fi
+
+    d_ok "gamescale64.dll 내장 인증서 $count 개 확인 / found $count embedded certificate(s)"
+    [ -f "$tmp/info" ] && while IFS= read -r line; do d_info "$line"; done < "$tmp/info"
+
+    if [ ! -s "$tmp/leaf.pem" ]; then
+        d_bad "리프 인증서를 찾지 못했습니다 (전부 CA로 표시됨) / no leaf certificate found"
+        rm -rf "$tmp"; return
+    fi
+
+    local args=(-CAfile "$CERTDIR/ca-certificates.crt" -untrusted "$tmp/mid.pem")
+    if openssl verify -help 2>&1 | grep -q -- '-show_chain'; then args+=(-show_chain); fi
+    if verify_out="$(openssl verify "${args[@]}" "$tmp/leaf.pem" 2>&1)"; then rc=0; else rc=$?; fi
+
+    if [ "$rc" -eq 0 ]; then
+        d_ok "실제 서명이 신뢰 목록으로 핀 루트까지 검증됨 / real signature verifies up to the pinned root"
+        if printf '%s' "$verify_out" | grep -q 'depth='; then
+            printf '%s\n' "$verify_out" | grep 'depth=' | while IFS= read -r line; do d_info "$line"; done
+        fi
+    else
+        d_bad "실제 서명이 신뢰 목록으로 검증되지 않습니다 / real signature does NOT verify"
+        printf '%s\n' "$verify_out" | tail -3 | while IFS= read -r line; do d_info "$line"; done
+        d_info "위 다른 항목이 전부 ✓ 라도, 이 DLL 기준으로는 체인이 핀 루트에 도달하지"
+        d_info "못한다는 뜻입니다 — install/run이 이 DLL을 실제로 실행하는 그 Wine 세션에"
+        d_info "적용됐는지 다시 확인하세요 (오래된 wineserver 재사용, 중첩 컨테이너에서"
+        d_info "PRESSURE_VESSEL_IMPORT_CA_CERTS 미전파 등)."
+    fi
+    rm -rf "$tmp"
+}
+
 # 래퍼 안에서 재실행되는 부분 — 신뢰 목록 교체가 실제로 합성됐는지 확인한다.
 doctor_inside() {
     local b=/etc/ssl/certs/ca-certificates.crt
@@ -667,8 +762,16 @@ cmd_doctor() {
         d_info "      지문이 남아 있을 수 있습니다. Wine 내부 장부일 뿐 신뢰 저장소가 아닙니다."
         local dll
         dll="$(find "$pfx" -maxdepth 8 -name gamescale64.dll -type f 2>/dev/null | head -1)"
-        if [ -n "$dll" ]; then d_ok "gamescale64.dll: $dll"
-        else d_bad "프리픽스 안에서 gamescale64.dll 을 찾지 못했습니다 / not found in this prefix"; fi
+        if [ -n "$dll" ]; then
+            d_ok "gamescale64.dll: $dll"
+            if [ -f "$CERTDIR/ca-certificates.crt" ]; then
+                check_dll_chain "$dll"
+            else
+                d_warn "신뢰 목록이 없어 실제 서명 검증은 건너뜁니다 / trust list missing, skipping real-signature check"
+            fi
+        else
+            d_bad "프리픽스 안에서 gamescale64.dll 을 찾지 못했습니다 / not found in this prefix"
+        fi
     fi
 
     d_head "4. 실행 중인 세션 / running sessions"
