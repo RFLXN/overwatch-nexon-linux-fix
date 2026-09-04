@@ -808,6 +808,18 @@ cmd_run() {
    Steam 실행 옵션이라면 '%command%' 를 함께 넣어야 합니다."
     check_deps
     build_certdir
+
+    # install 이후 게임을 한 번 플레이하고 나면 (경로는 아직 불명) 프리픽스 Root 에
+    # 자체서명 G4 가 다시 채워져 있을 수 있다 — 그러면 신뢰 목록을 아무리 잘 만들어도
+    # 소용없다(purge_self_signed_root 주석 참고). install 때만 지우면 다음 실행부터
+    # 다시 깨지므로, 매 실행 전에도 지운다. wineserver 가 떠 있으면 우리가 지운
+    # 레지스트리를 wineserver 가 자기 메모리 상태로 덮어쓸 수 있으므로 그때는 건드리지
+    # 않고 경고만 한다.
+    if [ -z "$(live_sessions)" ]; then
+        local pfx; pfx="$(cat "$STATE_DIR/prefix" 2>/dev/null || true)"
+        [ -n "$pfx" ] && [ -f "$pfx/system.reg" ] || pfx="$(resolve_prefix)"
+        purge_self_signed_root "$pfx"
+    fi
     warn_live_sessions
 
     build_binds
