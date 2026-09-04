@@ -32,6 +32,14 @@ CROSS_G4="A99D5B79E9F1CDA59CDAB6373169D5353F5874C6"
 # 게임이 하드코딩해 둔 핀 값 — 체인의 끝이 반드시 이 인증서여야 한다.
 # 신뢰 목록에 이게 없으면 앵커 자체가 없어서 체인이 한 칸 더 올라갈 수 없다.
 PINNED_ROOT="0563B8630D62D75ABBC8AB1E4BDFB5A899B24D43"
+# Steam Linux Runtime(pressure-vessel)이 PRESSURE_VESSEL_IMPORT_CA_CERTS=1일 때
+# 호스트 /etc/ssl/certs 를 실제로 신뢰할지 판단하는 하드코딩된 존재 확인용 파일 이름
+# 이다(pressure-vessel-wrap 바이너리 문자열: "244b5494.0", "Not importing host CA
+# certificates: %s"). 이 파일(c_rehash 해시 244b5494 = DigiCert High Assurance EV
+# Root CA)이 신뢰 목록에 없으면 임포트 자체를 건너뛰고 런타임 자체 번들(자체서명 G4
+# 포함)로 조용히 대체한다 — 우리가 호스트/프리픽스 쪽을 아무리 정확히 고쳐도 이 파일
+# 하나가 없으면 전부 무효가 된다. 배포판이 이 루트를 뺀 경우에만 폴백으로 쓴다.
+PRESSURE_VESSEL_SENTINEL="5FB7EE0633E259DBAD0C4C9AE6D38F1A61C7DC25"
 
 STATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/overwatch-nexon-fix"
 CERTDIR="$STATE_DIR/certs"
@@ -90,6 +98,29 @@ EkxY5NM9g0lFWJc1aRqoR+pWxnmrEthngYTffwk8lOa4JiwgvT2zKIn3X/8i4peEH+ll74fg38Fn
 SbNd67IJKusm7Xi+fT8r87cmNW1fiQG2SVufAQWbqz0lwcy2f8Lxb4bG+mRo64EtlOtCt/qMHt1i
 8b5QZ7dsvfPxH2sMNgcWfzd8qVttevESRmCD1ycEvkvOl77DZypoEd+A5wwzZr8TDRRu838fYxAe
 +o0bJW1sj6W3YQGx0qMmoRBxna3iw/nDmVG3KwcIzi7mULKn+gpFL6Lw8g==
+CERT_EOF
+
+# pressure-vessel 의 호스트-임포트 존재 확인용 루트 DigiCert High Assurance EV Root CA
+# (공개 DigiCert 인증서, DER/base64). 배포판이 신뢰 목록에서 이 루트를 빼 버린
+# 경우에만 폴백으로 쓴다.
+read -r -d '' PRESSURE_VESSEL_SENTINEL_B64 <<'CERT_EOF' || true
+MIIDxTCCAq2gAwIBAgIQAqxcJmoLQJuPC3nyrkYldzANBgkqhkiG9w0BAQUFADBsMQswCQYDVQQG
+EwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSsw
+KQYDVQQDEyJEaWdpQ2VydCBIaWdoIEFzc3VyYW5jZSBFViBSb290IENBMB4XDTA2MTExMDAwMDAw
+MFoXDTMxMTExMDAwMDAwMFowbDELMAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZ
+MBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTErMCkGA1UEAxMiRGlnaUNlcnQgSGlnaCBBc3N1cmFu
+Y2UgRVYgUm9vdCBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMbM5XPm+9S75S0t
+Mqbf5YE/yc0lSbZxKsPVlDRnogocsF9ppkCxxLeyj9CYpKlBWTrT3JTWPNt0OKRKzE0lgvdKpVMS
+OO7zSW1xkX5jtqumX8OkhPhPYlG++MXs2ziS4wblCJEMxChBVfvLWokVfnHoNb9Ncgk9vjo4UFt3
+MRuNs8ckRZqnrG0AFFoEt7oT61EKmEFBIk5lYYeBQVCmeVyJ3hlKV9Uu5l0cUyx+mM0aBhakaHPQ
+NAQTXKFx01p8VdteZOE3hzBWBOURtCmAEvF5OYiiAhF8J2a3iLd48soKqDirCmTCv2ZdlYTBoSUe
+h10aUAsgEsxBu24LUTi4S8sCAwEAAaNjMGEwDgYDVR0PAQH/BAQDAgGGMA8GA1UdEwEB/wQFMAMB
+Af8wHQYDVR0OBBYEFLE+w2kD+L9HAdSYJhoIAu9jZCvDMB8GA1UdIwQYMBaAFLE+w2kD+L9HAdSY
+JhoIAu9jZCvDMA0GCSqGSIb3DQEBBQUAA4IBAQAcGgaX3NecnzyIZgYIVyHbIUf4KmeqvxgydkAQ
+V8GK83rZEWWONfqe/EW1ntlMMUu4kehDLI6zeM7b41N5cdblIZQB2lWHmiRk9opmzN6cN82oNLFp
+myPInngiK3BD41VHMWEZ71jFhS9OMPagMRYjyOfiZRYzy78aG6A9+MpeizGLYAiJLQwGXFK3xPkK
+mNEVX58Svnw2Yzi9RKR/5CYrCsSXaQ3pjOLAEFe4yHYSkVXySGnYvCoCWw9E1CAx2/S6cCZdkGCe
+vEsXCS+0yx5DaMkHJ8HSXPfqIbloEpw8nL+e/IBcm2PN7EeqJSdnoDfzAIJ9VNep+OkuE6N36B9K
 CERT_EOF
 
 # ── 사전 점검 ─────────────────────────────────────────────────────────────
@@ -151,6 +182,36 @@ search_roots() {
         [ -d "$HOME/.wine" ] && echo "$HOME/.wine"
         [ -n "${WINEPREFIX:-}" ] && [ -d "$WINEPREFIX" ] && echo "$WINEPREFIX"
     } | while IFS= read -r r; do readlink -f "$r"; done | sort -u
+}
+
+# Steam 을 쓰는 경우 게임은 실제로 이 스크립트가 감싼 bwrap 이 아니라, 그 안에서
+# 또 pressure-vessel(Steam Linux Runtime)이 만드는 중첩 컨테이너에서 돈다. 그
+# 컨테이너는 자기만의 CA 번들을 갖고 있어서, PRESSURE_VESSEL_IMPORT_CA_CERTS=1 이
+# 실제로 호스트 인증서를 받아들였는지는 raw bwrap 재실행만으로는 확인할 수 없다
+# (doctor 의 2번 항목이 그동안 놓친 지점). 있으면 doctor 가 그 안에서도 재확인한다.
+find_steam_runtime() {
+    local r p d
+    for r in "$HOME/.local/share/Steam" "$HOME/.steam/steam" "$HOME/.steam/root" \
+             "$HOME/.var/app/com.valvesoftware.Steam/data/Steam"; do
+        for d in "$r/steamapps/common"/SteamLinuxRuntime_sniper \
+                 "$r/steamapps/common"/SteamLinuxRuntime_soldier \
+                 "$r/steamapps/common"/SteamLinuxRuntime_scout \
+                 "$r/steamapps/common"/SteamLinuxRuntime*; do
+            [ -x "$d/run" ] && { echo "$d/run"; return 0; }
+        done
+        if [ -f "$r/steamapps/libraryfolders.vdf" ]; then
+            while IFS= read -r p; do
+                for d in "$p/steamapps/common"/SteamLinuxRuntime_sniper \
+                         "$p/steamapps/common"/SteamLinuxRuntime_soldier \
+                         "$p/steamapps/common"/SteamLinuxRuntime_scout \
+                         "$p/steamapps/common"/SteamLinuxRuntime*; do
+                    [ -x "$d/run" ] && { echo "$d/run"; return 0; }
+                done
+            done < <(grep -oE '"path"[[:space:]]+"[^"]+"' "$r/steamapps/libraryfolders.vdf" 2>/dev/null \
+                     | sed 's/.*"\(.*\)"$/\1/' | sed 's/\\\\/\//g')
+        fi
+    done
+    return 1
 }
 
 find_prefixes() {
@@ -219,10 +280,12 @@ build_certdir() {
     rm -rf "$CERTDIR"; mkdir -p "$CERTDIR"
 
     OW_SRC="$src" OW_OUT="$CERTDIR" OW_DROP="$SELF_SIGNED_G4" OW_PIN="$PINNED_ROOT" \
-    OW_PIN_B64="$ASSURED_ID_ROOT_B64" python3 - <<'PY'
+    OW_PIN_B64="$ASSURED_ID_ROOT_B64" OW_SENTINEL="$PRESSURE_VESSEL_SENTINEL" \
+    OW_SENTINEL_B64="$PRESSURE_VESSEL_SENTINEL_B64" python3 - <<'PY'
 import base64, hashlib, os, re, subprocess, tempfile, textwrap
 src, out  = os.environ["OW_SRC"], os.environ["OW_OUT"]
 drop, pin = os.environ["OW_DROP"], os.environ["OW_PIN"]
+sentinel  = os.environ["OW_SENTINEL"]
 blocks, cur = [], []
 for line in open(src, encoding="utf-8", errors="replace"):
     line = line.rstrip("\n")
@@ -247,13 +310,15 @@ def emit(pem, i):
     name = re.sub(r"[^A-Za-z0-9]+", "_", label.strip())[:60] or ("cert%d" % i)
     open(os.path.join(out, "%s_%d.pem" % (name, i)), "w").write(pem + "\n")
 
-kept, dropped, pinned_seen = [], 0, False
+kept, dropped, pinned_seen, sentinel_seen = [], 0, False, False
 for i, b in enumerate(blocks):
     fp = fingerprint(b)
     if fp == drop:
         dropped += 1; continue
     if fp == pin:
         pinned_seen = True
+    if fp == sentinel:
+        sentinel_seen = True
     emit(b, i); kept.append(b)
 
 if dropped == 0:
@@ -262,20 +327,35 @@ if dropped == 0:
                      "Self-signed DigiCert Trusted Root G4 not found in the system "
                      "CA bundle.")
 
-# 게임이 핀해 둔 루트가 배포판 번들에서 빠져 있으면 체인이 올라갈 곳이 없다.
-# 이 경우에만 내장 사본을 신뢰 목록에 되돌려 넣는다 (래퍼 네임스페이스 안에서만 유효).
-if not pinned_seen:
-    b64 = "".join(os.environ["OW_PIN_B64"].split())
+def add_embedded(b64_env, thumb, i, label):
+    b64 = "".join(os.environ[b64_env].split())
     der = base64.b64decode(b64)
-    if hashlib.sha1(der).hexdigest().upper() != pin:
-        raise SystemExit("내장 핀 루트 지문 불일치 — 스크립트가 손상되었습니다 / "
-                         "embedded pinned root fingerprint mismatch")
+    if hashlib.sha1(der).hexdigest().upper() != thumb:
+        raise SystemExit("%s 지문 불일치 — 스크립트가 손상되었습니다 / "
+                         "%s fingerprint mismatch" % (label, label))
     pem = ("-----BEGIN CERTIFICATE-----\n"
            + "\n".join(textwrap.wrap(b64, 64))
            + "\n-----END CERTIFICATE-----")
-    emit(pem, len(blocks)); kept.append(pem)
+    emit(pem, i); kept.append(pem)
+
+# 게임이 핀해 둔 루트가 배포판 번들에서 빠져 있으면 체인이 올라갈 곳이 없다.
+# 이 경우에만 내장 사본을 신뢰 목록에 되돌려 넣는다 (래퍼 네임스페이스 안에서만 유효).
+if not pinned_seen:
+    add_embedded("OW_PIN_B64", pin, len(blocks), "내장 핀 루트/embedded pinned root")
     print("  ! 배포판 번들에 DigiCert Assured ID Root CA 가 없어 내장 사본을 추가했습니다")
     print("    added the embedded DigiCert Assured ID Root CA (missing from this distro)")
+
+# pressure-vessel 이 PRESSURE_VESSEL_IMPORT_CA_CERTS=1일 때 호스트 임포트 여부를
+# 결정하려고 하드코딩된 파일 이름(c_rehash 해시 244b5494.0)의 존재를 확인한다. 이
+# 루트가 없으면 임포트를 통째로 건너뛰고 컨테이너 자체 번들(자체서명 G4 포함)로
+# 조용히 대체돼, 신뢰 목록을 아무리 잘 만들어도 pressure-vessel 안에서는 무효가 된다.
+if not sentinel_seen:
+    add_embedded("OW_SENTINEL_B64", sentinel, len(blocks) + 1,
+                 "pressure-vessel 확인용 루트/pressure-vessel sentinel root")
+    print("  ! 배포판 번들에 DigiCert High Assurance EV Root CA 가 없어 내장 사본을 "
+         "추가했습니다 (pressure-vessel 호스트 인증서 임포트에 필요)")
+    print("    added the embedded DigiCert High Assurance EV Root CA (missing from "
+         "this distro; pressure-vessel needs it present to import host certs at all)")
 
 bundle = "\n".join(kept) + "\n"
 for n in ("ca-certificates.crt", "ca-bundle.crt"):
@@ -734,6 +814,31 @@ cmd_doctor() {
         build_binds
         if ! bwrap --dev-bind / / "${BINDS[@]}" -- "$SELF" doctor --inside; then
             DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
+        fi
+
+        # 위 2번은 raw bwrap 안이라 우리 마스킹이 잘 합성됐는지만 보여준다. Steam으로
+        # 실행하면 게임은 실제로 그 위에 pressure-vessel 이 만드는 별도 컨테이너에서
+        # 돈다 — 그 컨테이너는 PRESSURE_VESSEL_IMPORT_CA_CERTS=1 이 실제로 먹혔을 때만
+        # 우리 신뢰 목록을 쓰고, 아니면 조용히 자기 자신의 번들(자체서명 G4 포함)로
+        # 대체한다. 여기서만 잡히는 실패가 있다 — doctor가 전부 ✓인데 실제 게임은
+        # 계속 깨지는 사례의 원인이 대개 이거다.
+        local runtime; runtime="$(find_steam_runtime 2>/dev/null || true)"
+        if [ -n "$runtime" ]; then
+            d_head "2b. Steam Linux Runtime 컨테이너 / inside the Steam Linux Runtime container"
+            d_info "런타임 / runtime: $runtime"
+            local out rc; out="$(mktemp)"
+            bwrap --dev-bind / / "${BINDS[@]}" -- \
+                env PRESSURE_VESSEL_IMPORT_CA_CERTS=1 \
+                "$runtime" -- "$SELF" doctor --inside >"$out" 2>&1 && rc=0 || rc=$?
+            if [ "$rc" -ne 0 ]; then
+                DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
+                d_bad "Steam Linux Runtime 컨테이너 안에서 실패 / fails inside the container"
+                d_info "pressure-vessel이 호스트 인증서 임포트를 건너뛰었을 수 있습니다."
+                d_info "PRESSURE_VESSEL_VERBOSE=1로 재실행하면 'Not importing host CA"
+                d_info "certificates' 로그로 확인할 수 있습니다."
+            fi
+            sed 's/^/  /' "$out"
+            rm -f "$out"
         fi
     fi
 
