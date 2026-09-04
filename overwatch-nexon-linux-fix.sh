@@ -211,6 +211,16 @@ find_steam_runtime() {
                      | sed 's/.*"\(.*\)"$/\1/' | sed 's/\\\\/\//g')
         fi
     done
+    # umu-launcher(Lutris/Heroic 등에서 흔히 쓰는 독립 Steam Runtime 배포판)는
+    # Steam 라이브러리가 아니라 ~/.local/share/umu/steamrt<N>/ 아래에 자기만의
+    # 런타임을 둔다 — 레이아웃(run, pressure-vessel/)은 동일하다. 새 버전이
+    # 먼저 오도록 내림차순으로 본다.
+    for r in "${XDG_DATA_HOME:-$HOME/.local/share}/umu" \
+             "$HOME/.var/app/com.usebottles.bottles/data/umu"; do
+        for d in $(find "$r" -maxdepth 1 -type d -name 'steamrt*' 2>/dev/null | sort -rV); do
+            [ -x "$d/run" ] && { echo "$d/run"; return 0; }
+        done
+    done
     return 1
 }
 
