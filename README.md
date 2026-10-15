@@ -43,51 +43,6 @@ sudo zypper install bubblewrap openssl python3  # openSUSE
 
 `bubblewrap`(`bwrap`)은 대부분 Steam과 함께 이미 깔려 있습니다.
 
-## NixOS (이 포크)
-
-이 포크는 필요한 명령을 함께 제공하는 Nix 패키지를 포함합니다. NixOS 시스템
-설정을 변경하거나 전역 Python/OpenSSL 설치를 할 필요가 없습니다.
-
-```bash
-git clone https://github.com/RFLXN/overwatch-nexon-linux-fix.git
-cd overwatch-nexon-linux-fix
-git switch codex/nixos-support
-nix build .# --out-link "$HOME/.local/share/overwatch-nexon-fix-package"
-```
-
-게임과 해당 Wine 서버를 종료한 뒤, 실제 `system.reg`가 있는 경로를 지정해 설치합니다.
-
-```bash
-OW_PREFIX=/path/to/prefix "$HOME/.local/share/overwatch-nexon-fix-package/bin/overwatch-nexon-linux-fix" install
-```
-
-Lutris의 **Configure → System options → Command prefix**에는 아래 경로를
-홈 디렉터리의 절대 경로로 바꿔 입력합니다.
-
-```text
-/home/USER/.local/share/overwatch-nexon-fix-package/bin/overwatch-nexon-linux-fix run
-```
-
-이 빌드 링크는 Nix GC root이므로 유지하세요. 원본 스크립트가 출력하는
-`/nix/store/...` 경로보다 위 링크를 런처에 등록하는 편이 업데이트하기 쉽습니다.
-
-NixOS의 Lutris `buildFHSEnv`에서는 `/etc/ssl/certs`가 `/.host-etc`로 이어지는
-심볼릭 링크입니다. 이 포크는 링크의 실제 디렉터리에 읽기 전용 마운트를 적용합니다.
-시스템 인증서 파일이나 `/nix/store` 파일은 수정하지 않습니다.
-
-`status`는 일반 NixOS 셸에서 실행할 수 있습니다. `doctor`의 중첩 런타임 검사는
-게임과 동일한 FHS 환경 안에서 실행해야 합니다. 일반 셸에서는 NixOS의 동적 로더
-오류가 발생할 수 있으며, 이는 인증서 오류와 별개입니다. 자동 탐지가 다른 Steam
-런타임을 선택하면 다음 변수로 실제 UMU 런타임을 지정할 수 있습니다.
-
-```bash
-export OW_RUNTIME="$HOME/.local/share/umu/steamrt4/run"
-```
-
-되돌릴 때는 런처와 Wine 서버를 종료하고 패키지의 `uninstall` 명령을 실행한 뒤
-Lutris의 Command prefix를 제거합니다. `uninstall`은 설치 시점의 `system.reg`
-전체를 복원하므로 이후 레지스트리 변경도 되돌립니다.
-
 ## 1단계 — 설치
 
 ```bash
@@ -197,6 +152,52 @@ Bottles에는 명령 래퍼 필드가 없습니다. 터미널에서 실행하세
 /전체/경로/overwatch-nexon-linux-fix.sh run \
   env WINEPREFIX=~/.wine wine "C:\\Program Files (x86)\\Battle.net\\Battle.net Launcher.exe"
 ```
+
+### NixOS / Lutris
+
+Nix flakes가 활성화된 NixOS에서 네이티브 Lutris를 사용하는 경우에는 아래
+절차로 설치합니다. Lutris에 넥슨플러그와 오버워치가 이미 설치되어 있어야 합니다.
+아래 절차에는 인증서 설치가 포함되어 있으므로 위의 일반 설치 명령을 별도로
+실행할 필요는 없습니다.
+
+**1. 패키지 빌드**
+
+```bash
+git clone https://github.com/seolcu/overwatch-nexon-linux-fix.git
+cd overwatch-nexon-linux-fix
+mkdir -p "$HOME/.local/share"
+nix build .# --out-link "$HOME/.local/share/overwatch-nexon-fix-package"
+```
+
+필요한 실행 도구가 패키지에 포함되므로 별도로 설치하거나 NixOS 시스템을
+재빌드할 필요는 없습니다. 생성한 빌드 링크는 계속 유지하세요.
+
+**2. 인증서 설치**
+
+게임과 넥슨플러그를 완전히 종료합니다. 창을 닫아도 트레이에 남을 수 있으므로
+Lutris에서 실행을 중지하고, 해당 Wine 세션도 종료됐는지 확인하세요.
+
+Lutris의 **Configure → Game options → Wine prefix**에서 프리픽스를 확인하고,
+아래 `/path/to/prefix`를 실제 `system.reg`가 있는 디렉터리로 바꿉니다.
+`system.reg`가 `pfx` 하위에 있다면 그 디렉터리를 지정하세요.
+
+```bash
+OW_PREFIX=/path/to/prefix "$HOME/.local/share/overwatch-nexon-fix-package/bin/overwatch-nexon-linux-fix" install
+```
+
+**3. Lutris 실행 옵션 등록**
+
+넥슨플러그 항목의 **Configure → System options → Command prefix**에 다음
+내용을 입력합니다. `USER`를 실제 사용자 이름으로 바꾸고 절대 경로를 사용하세요.
+옵션이 보이지 않으면 **Advanced**를 켭니다.
+
+```text
+/home/USER/.local/share/overwatch-nexon-fix-package/bin/overwatch-nexon-linux-fix run
+```
+
+`run`까지만 입력하고 저장합니다. 기존 넥슨플러그 세션이 완전히 종료된 상태에서
+Lutris로 넥슨플러그를 새로 실행한 뒤 오버워치를 시작하세요. OTP 창이 뜨면
+평소처럼 직접 인증합니다.
 
 ### 대안 — 래퍼를 쓸 수 없을 때
 
