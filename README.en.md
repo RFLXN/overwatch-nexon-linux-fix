@@ -51,6 +51,38 @@ sudo zypper install bubblewrap openssl python3  # openSUSE
 
 `bubblewrap` (`bwrap`) usually ships with Steam already.
 
+## NixOS (this fork)
+
+The flake packages the script with its runtime dependencies; no system rebuild or
+global Python/OpenSSL installation is needed.
+
+```bash
+git clone https://github.com/RFLXN/overwatch-nexon-linux-fix.git
+cd overwatch-nexon-linux-fix
+git switch codex/nixos-support
+nix build .# --out-link "$HOME/.local/share/overwatch-nexon-fix-package"
+# Stop the launcher and Wine server before modifying the prefix.
+OW_PREFIX=/path/to/prefix "$HOME/.local/share/overwatch-nexon-fix-package/bin/overwatch-nexon-linux-fix" install
+```
+
+Set Lutris **Configure → System options → Command prefix** to the absolute path
+`/home/USER/.local/share/overwatch-nexon-fix-package/bin/overwatch-nexon-linux-fix run`.
+Keep the build link: it protects the package from Nix garbage collection.
+
+NixOS Lutris uses `buildFHSEnv`, where `/etc/ssl/certs` is a symlink into
+`/.host-etc`. This fork resolves that directory before mounting the filtered
+certificates read-only. It does not modify the host CA bundle or Nix store files.
+
+`status` works from a normal NixOS shell. Run the nested-runtime part of `doctor`
+inside the same FHS environment as the game; otherwise NixOS may reject the
+runtime's generic ELF interpreter before certificate checks begin. To select the
+actual UMU runtime instead of an unrelated Steam installation, set
+`OW_RUNTIME="$HOME/.local/share/umu/steamrt4/run"`.
+
+To revert, stop the launcher and Wine server, run the package's `uninstall`
+command, and remove the Lutris command prefix. Uninstall restores the entire
+installation-time `system.reg` backup, including undoing later registry changes.
+
 ## Step 1 — install
 
 ```bash

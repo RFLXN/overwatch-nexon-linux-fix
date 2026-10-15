@@ -43,6 +43,51 @@ sudo zypper install bubblewrap openssl python3  # openSUSE
 
 `bubblewrap`(`bwrap`)은 대부분 Steam과 함께 이미 깔려 있습니다.
 
+## NixOS (이 포크)
+
+이 포크는 필요한 명령을 함께 제공하는 Nix 패키지를 포함합니다. NixOS 시스템
+설정을 변경하거나 전역 Python/OpenSSL 설치를 할 필요가 없습니다.
+
+```bash
+git clone https://github.com/RFLXN/overwatch-nexon-linux-fix.git
+cd overwatch-nexon-linux-fix
+git switch codex/nixos-support
+nix build .# --out-link "$HOME/.local/share/overwatch-nexon-fix-package"
+```
+
+게임과 해당 Wine 서버를 종료한 뒤, 실제 `system.reg`가 있는 경로를 지정해 설치합니다.
+
+```bash
+OW_PREFIX=/path/to/prefix "$HOME/.local/share/overwatch-nexon-fix-package/bin/overwatch-nexon-linux-fix" install
+```
+
+Lutris의 **Configure → System options → Command prefix**에는 아래 경로를
+홈 디렉터리의 절대 경로로 바꿔 입력합니다.
+
+```text
+/home/USER/.local/share/overwatch-nexon-fix-package/bin/overwatch-nexon-linux-fix run
+```
+
+이 빌드 링크는 Nix GC root이므로 유지하세요. 원본 스크립트가 출력하는
+`/nix/store/...` 경로보다 위 링크를 런처에 등록하는 편이 업데이트하기 쉽습니다.
+
+NixOS의 Lutris `buildFHSEnv`에서는 `/etc/ssl/certs`가 `/.host-etc`로 이어지는
+심볼릭 링크입니다. 이 포크는 링크의 실제 디렉터리에 읽기 전용 마운트를 적용합니다.
+시스템 인증서 파일이나 `/nix/store` 파일은 수정하지 않습니다.
+
+`status`는 일반 NixOS 셸에서 실행할 수 있습니다. `doctor`의 중첩 런타임 검사는
+게임과 동일한 FHS 환경 안에서 실행해야 합니다. 일반 셸에서는 NixOS의 동적 로더
+오류가 발생할 수 있으며, 이는 인증서 오류와 별개입니다. 자동 탐지가 다른 Steam
+런타임을 선택하면 다음 변수로 실제 UMU 런타임을 지정할 수 있습니다.
+
+```bash
+export OW_RUNTIME="$HOME/.local/share/umu/steamrt4/run"
+```
+
+되돌릴 때는 런처와 Wine 서버를 종료하고 패키지의 `uninstall` 명령을 실행한 뒤
+Lutris의 Command prefix를 제거합니다. `uninstall`은 설치 시점의 `system.reg`
+전체를 복원하므로 이후 레지스트리 변경도 되돌립니다.
+
 ## 1단계 — 설치
 
 ```bash

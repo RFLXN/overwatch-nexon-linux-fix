@@ -191,6 +191,11 @@ search_roots() {
 # (doctor 의 2번 항목이 그동안 놓친 지점). 있으면 doctor 가 그 안에서도 재확인한다.
 find_steam_runtime() {
     local r p d
+    if [ -n "${OW_RUNTIME:-}" ]; then
+        [ -x "$OW_RUNTIME" ] || die "OW_RUNTIME is not executable: $OW_RUNTIME"
+        printf '%s\n' "$OW_RUNTIME"
+        return 0
+    fi
     for r in "$HOME/.local/share/Steam" "$HOME/.steam/steam" "$HOME/.steam/root" \
              "$HOME/.var/app/com.valvesoftware.Steam/data/Steam"; do
         for d in "$r/steamapps/common"/SteamLinuxRuntime_sniper \
@@ -468,7 +473,10 @@ prepare_prefix() {
    강제 종료: pkill -x wineserver"
     fi
 
-    cp -n "$reg" "$reg.bak-overwatch-nexon-fix" 2>/dev/null || true
+    if [ ! -e "$reg.bak-overwatch-nexon-fix" ]; then
+        cp -p "$reg" "$reg.bak-overwatch-nexon-fix" \
+            || die "Could not back up the prefix registry; refusing to modify it."
+    fi
     echo "     백업 / backup: $reg.bak-overwatch-nexon-fix"
     if [ "$need_cert" -eq 1 ]; then install_cert "$pfx"; fi
     purge_self_signed_root "$pfx"
@@ -598,11 +606,18 @@ EXTRA_BUNDLE_PATHS=(
 # (예: Fedora 의 /etc/ssl/cert.pem → /etc/pki/ca-trust/.../tls-ca-bundle.pem).
 # 어차피 링크 대상이 대부분 같은 번들이라 잃는 것도 없다.
 build_binds() {
-    BINDS=(--bind "$CERTDIR" /etc/ssl/certs)
+    # NixOS buildFHSEnv (including Lutris) links this directory into /.host-etc.
+    # Bind the resolved directory, never the shared /nix/store CA bundle file.
+    local cert_target=/etc/ssl/certs
+    if [ -L "$cert_target" ]; then
+        cert_target="$(readlink -f "$cert_target")"
+        [ -d "$cert_target" ] || die "Invalid certificate directory: $cert_target"
+    fi
+    BINDS=(--ro-bind "$CERTDIR" "$cert_target")
     local p
     for p in "${EXTRA_BUNDLE_PATHS[@]}"; do
         if [ -f "$p" ] && [ ! -L "$p" ]; then
-            BINDS+=(--bind "$CERTDIR/ca-certificates.crt" "$p")
+            BINDS+=(--ro-bind "$CERTDIR/ca-certificates.crt" "$p")
         fi
     done
 }
@@ -731,12 +746,16 @@ PY
         rm -rf "$tmp"; return
     fi
 
+    # Wine obtains this intermediate from the prefix CA store, not the root
+    # bundle or DLL. Supply it to OpenSSL too; otherwise doctor falsely fails.
+    write_cross_pem "$tmp/cross.pem"
+    cat "$tmp/cross.pem" >> "$tmp/mid.pem"
     local args=(-CAfile "$CERTDIR/ca-certificates.crt" -untrusted "$tmp/mid.pem")
     if openssl verify -help 2>&1 | grep -q -- '-show_chain'; then args+=(-show_chain); fi
     if verify_out="$(openssl verify "${args[@]}" "$tmp/leaf.pem" 2>&1)"; then rc=0; else rc=$?; fi
 
     if [ "$rc" -eq 0 ]; then
-        d_ok "실제 서명이 신뢰 목록으로 핀 루트까지 검증됨 / real signature verifies up to the pinned root"
+        d_ok "DLL 인증서 체인 검증 성공 / DLL certificate chain verifies with the cross-certificate"
         if printf '%s' "$verify_out" | grep -q 'depth='; then
             printf '%s\n' "$verify_out" | grep 'depth=' | while IFS= read -r line; do d_info "$line"; done
         fi
