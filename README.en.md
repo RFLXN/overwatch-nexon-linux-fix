@@ -57,9 +57,8 @@ The flake packages the script with its runtime dependencies; no system rebuild o
 global Python/OpenSSL installation is needed.
 
 ```bash
-git clone https://github.com/RFLXN/overwatch-nexon-linux-fix.git
+git clone https://github.com/seolcu/overwatch-nexon-linux-fix.git
 cd overwatch-nexon-linux-fix
-git switch codex/nixos-support
 nix build .# --out-link "$HOME/.local/share/overwatch-nexon-fix-package"
 # Stop the launcher and Wine server before modifying the prefix.
 OW_PREFIX=/path/to/prefix "$HOME/.local/share/overwatch-nexon-fix-package/bin/overwatch-nexon-linux-fix" install
